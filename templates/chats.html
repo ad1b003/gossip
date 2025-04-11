@@ -1,0 +1,64 @@
+<article id="chat-window" style="display: flex; flex-direction: column; height: 100vh;">
+    <header role="group">
+        <button hx-get="/" hx-target="body" hx-swap="outerHTML">back to home</button>
+        <h2>Chat with {{ to }}</h2>
+    </header>
+
+    <div id="messages" hx-get="{{ url_for('chats', to=to, autofetch='yes') }}" hx-trigger="every 5s" target="#messages"
+        hx-swap="diff" style="flex-grow: 1; overflow-y: auto;">
+        <div id="chat-loading-indicator" class="loading-indicator" hx-indicator="#chat-window">Loading messages...</div>
+        {% for message in messages %}
+        <p><strong>{{ message.sender }}</strong>: {{ message.message }}</p>
+        {% endfor %}
+    </div>
+
+    <footer>
+        <form hx-post="/send" method="post" hx-target="#messages" hx-append="beforeend">
+            <fieldset role="group">
+                <input type="hidden" name="to" value="{{ to }}">
+                <input type="text" id="message" name="message" placeholder="Type a message" autofocus required>
+                <button type="submit">Send</button>
+                <span class="loading-indicator" hx-indicator="#this">Sending...</span>
+            </fieldset>
+        </form>
+    </footer>
+</article>
+
+<script>
+    function backToBottom() {
+        const msgContainer = document.getElementById('messages');
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+    }
+
+    backToBottom();
+
+    document.body.addEventListener("htmx:afterSwap", function (e) {
+        if (e.target.id === "messages") {
+            const chatRoomId = "{{ user }}-{{ to }}";
+            const members = ["{{ user }}", "{{ to }}"];
+            const messages = Array.from(document.querySelectorAll("#messages p")).map(p => {
+                const [sender, ...msgParts] = p.innerText.split(":");
+                return {
+                    sender: sender.trim(),
+                    message: msgParts.join(":").trim()
+                };
+            });
+
+            syncChatsToLocalDatabase(chatRoomId, members, messages);
+        }
+    });
+
+    document.querySelector('form[hx-post="/send"]').addEventListener('htmx:beforeRequest', function (event) {
+        document.getElementById('message').value = '';
+    });
+
+    document.querySelector('form[hx-post="/send"]').addEventListener('htmx:afterRequest', function (event) {
+        if (event.detail.successful) {
+            document.getElementById('message').focus();
+            backToBottom();
+        } else {
+            alert('Failed to send message');
+            console.error('Failed to send message');
+        }
+    });
+</script>

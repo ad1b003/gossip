@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>chit-chat</title>
+    <meta name="viewport" content="width=device-width">
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.pink.min.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <style>
+        .loading-indicator {
+            display: none;
+        }
+
+        .hx-request .loading-indicator,
+        .hx-loading .loading-indicator {
+            display: block;
+            opacity: 0.7;
+            cursor: wait;
+        }
+    </style>
+    <script>
+        const DB_NAME = 'chit-chat::local-database';
+        const DB_VERSION = 1;
+        let db;
+
+        function openDatabase() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onupgradeneeded = function (e) {
+                    db = e.target.result;
+                    if (!db.objectStoreNames.contains("chat-rooms")) {
+                        db.createObjectStore("chat-rooms", { keyPath: "chat_room_id" });
+                    }
+                };
+                request.onsuccess = function (e) {
+                    db = e.target.result;
+                    resolve(db);
+                };
+                request.onerror = function (e) {
+                    reject("error while opening the database, " + e.target.error);
+                };
+            });
+        }
+
+        async function storeChats(chatroomData) {
+            const db = await openDatabase();
+            const tx = db.transaction("chat-rooms", "readwrite");
+            const store = tx.objectStore("chat-rooms");
+            await store.put(chatroomData);
+            tx.oncomplete = () => console.log(chatroomData); db.close();
+        }
+
+        async function syncChatsToLocalDatabase(chatroomId, members, messages) {
+            await storeChats({
+                chat_room_id: chatroomId,
+                members: members,
+                messages: messages
+            });
+        }
+    </script>
+</head>
+
+<body class="container">
+    <header>
+        <h1>chit-chat</h1>
+    </header>
+    <main>
+        {% if user %}
+        <article>
+            <h3>Welcome <strong>{{ user['name'] }}</strong></h3>
+            <a href="/sign-out" role="button" class="contrast">Sign out</a>
+        </article>
+        <article>
+            <h3>Start chatting:</h3>
+            <ul>
+                {% for people in all_users %}
+                <li>
+                    <a hx-get="{{ url_for('chats', to=people['username'], autofetch='no') }}" hx-target="body"
+                        hx-swap="innerHTML">
+                        Talk to: <em>{{ people['name'] }}</em>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </article>
+
+        {% else %}
+        <article>
+            <fieldset role="grid">
+                <form hx-post="/sign-in" hx-target="body" hx-swap="outerHTML">
+                    <h2>Sign In</h2>
+                    <input type="text" name="username" placeholder="Username" required>
+                    <input type="password" name="pin" placeholder="PIN" required>
+                    <button type="submit">Sign In</button>
+                </form>
+            </fieldset>
+        </article>
+
+        <article>
+            <fieldset>
+                <form hx-post="/sign-up" hx-target="body" hx-swap="outerHTML">
+                    <h2>Sign Up</h2>
+                    <input type="text" name="name" placeholder="Name" required>
+                    <input type="text" name="username" placeholder="Username" required>
+                    <input type="password" name="pin" placeholder="PIN" required>
+                    <button type="submit">Sign Up</button>
+                </form>
+            </fieldset>
+        </article>
+        {% endif %}
+    </main>
+</body>
+
+</html>

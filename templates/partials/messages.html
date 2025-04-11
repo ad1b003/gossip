@@ -1,0 +1,5 @@
+<div class="overflow-auto" id="messages">
+    {% for message in messages %}
+    <p><strong>{{ message.sender }}</strong>: {{ message.message }}</p>
+    {% endfor %}
+</div>
